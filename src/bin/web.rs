@@ -31,12 +31,19 @@ struct Cli {
     /// binary. Handy while working on the UI.
     #[arg(long)]
     static_dir: Option<PathBuf>,
+    /// Open with this PDF already loaded, as if it had been dropped on the page.
+    file: Option<PathBuf>,
+    /// With a file: shrink it to this size straight away, like 2MB.
+    #[arg(long, value_parser = fit::parse_size, requires = "file")]
+    under: Option<usize>,
 }
 
 struct Session {
     name: String,
     input: Arc<Vec<u8>>,
-    output: Option<Vec<u8>>,
+    summary: serde_json::Value,
+    /// The last fit: its report and the file it made.
+    fitted: Option<(serde_json::Value, Vec<u8>)>,
 }
 
 #[derive(Default)]
@@ -102,6 +109,33 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// What the page shows about a file before shrinking it.
+fn summarize(name: &str, bytes: &[u8]) -> Result<serde_json::Value, doc::Error> {
+    let d = doc::load(bytes)?;
+    let inv = doc::inventory(&d);
+    let skipped: HashSet<_> = inv
+        .images
+        .iter()
+        .filter(|i| i.info.skip.is_some())
+        .map(|i| i.id)
+        .collect();
+    let images: Vec<&ImageInfo> = inv.images.iter().map(|i| &i.info).collect();
+    Ok(json!({
+        "name": name,
+        "bytes": bytes.len(),
+        "pages": inv.pages,
+        "inline_images": inv.inline_images,
+        "images": images,
+        "breakdown": fit::breakdown(&d, &skipped),
+    }))
+}
+
+fn shrink(input: &[u8], limit: usize) -> Result<(serde_json::Value, Vec<u8>), doc::Error> {
+    let outcome = fit::fit(input, limit)?;
+    let report = serde_json::to_value(&outcome).expect("plain data");
+    Ok((report, outcome.output))
+}
+
 /// Read a dropped PDF and say what's in it. The bytes are kept for the fit.
 async fn inspect(
     State(app): State<Arc<App>>,
@@ -113,36 +147,41 @@ async fn inspect(
         return Err(bad("empty", "The file is empty."));
     }
     let input = Arc::new(body.to_vec());
-    let bytes = input.clone();
-    let summary = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, doc::Error> {
-        let d = doc::load(&bytes)?;
-        let inv = doc::inventory(&d);
-        let skipped: HashSet<_> = inv
-            .images
-            .iter()
-            .filter(|i| i.info.skip.is_some())
-            .map(|i| i.id)
-            .collect();
-        let breakdown = fit::breakdown(&d, &skipped);
-        let images: Vec<&ImageInfo> = inv.images.iter().map(|i| &i.info).collect();
-        Ok(json!({
-            "bytes": bytes.len(),
-            "pages": inv.pages,
-            "inline_images": inv.inline_images,
-            "images": images,
-            "breakdown": breakdown,
-        }))
-    })
-    .await
-    .map_err(|e| bad("broken", e.to_string()))??;
+    let (bytes, n) = (input.clone(), name.clone());
+    let summary = tokio::task::spawn_blocking(move || summarize(&n, &bytes))
+        .await
+        .map_err(|e| bad("broken", e.to_string()))??;
     *app.session.lock().unwrap() = Some(Session {
-        name: name.clone(),
+        name,
         input,
-        output: None,
+        summary: summary.clone(),
+        fitted: None,
     });
-    let mut summary = summary;
-    summary["name"] = name.into();
     Ok(Json(summary))
+}
+
+/// The file that's open, so a reloaded page picks up where it was.
+async fn session(State(app): State<Arc<App>>) -> Json<serde_json::Value> {
+    let guard = app.session.lock().unwrap();
+    Json(match guard.as_ref() {
+        None => json!(null),
+        Some(s) => json!({
+            "inspection": s.summary,
+            "outcome": s.fitted.as_ref().map(|f| &f.0),
+        }),
+    })
+}
+
+async fn original(State(app): State<Arc<App>>) -> Api<Response> {
+    let guard = app.session.lock().unwrap();
+    let s = guard
+        .as_ref()
+        .ok_or_else(|| bad("no_file", "Drop a PDF first."))?;
+    Ok((
+        [(header::CONTENT_TYPE, "application/pdf")],
+        s.input.as_ref().clone(),
+    )
+        .into_response())
 }
 
 #[derive(Deserialize)]
@@ -164,12 +203,11 @@ async fn fit_now(
         .as_ref()
         .map(|s| s.input.clone())
         .ok_or_else(|| bad("no_file", "Drop a PDF first."))?;
-    let outcome = tokio::task::spawn_blocking(move || fit::fit(&input, req.limit))
+    let (report, output) = tokio::task::spawn_blocking(move || shrink(&input, req.limit))
         .await
         .map_err(|e| bad("broken", e.to_string()))??;
-    let report = serde_json::to_value(&outcome).expect("plain data");
     if let Some(s) = app.session.lock().unwrap().as_mut() {
-        s.output = Some(outcome.output);
+        s.fitted = Some((report.clone(), output));
     }
     Ok(Json(report))
 }
@@ -181,8 +219,9 @@ async fn result(State(app): State<Arc<App>>) -> Api<Response> {
         .as_ref()
         .ok_or_else(|| bad("no_file", "Drop a PDF first."))?;
     let out = s
-        .output
-        .clone()
+        .fitted
+        .as_ref()
+        .map(|f| f.1.clone())
         .ok_or_else(|| bad("no_result", "Shrink the file first."))?;
     Ok((
         [
@@ -264,13 +303,32 @@ async fn embedded_ui(uri: axum::http::Uri) -> Response {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let state = Arc::new(App::default());
+    if let Some(path) = &cli.file {
+        let input = std::fs::read(path)
+            .map_err(|e| anyhow::anyhow!("can't read {}: {e}", path.display()))?;
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "document.pdf".into());
+        let summary = summarize(&name, &input)?;
+        let fitted = cli.under.map(|l| shrink(&input, l)).transpose()?;
+        *state.session.lock().unwrap() = Some(Session {
+            name,
+            input: Arc::new(input),
+            summary,
+            fitted,
+        });
+    }
     let app = Router::new()
         .route("/api/inspect", post(inspect))
         .route("/api/fit", post(fit_now))
         .route("/api/result", get(result))
+        .route("/api/session", get(session))
+        .route("/api/original", get(original))
         // Scans run to hundreds of MB; the server only listens locally.
         .layer(axum::extract::DefaultBodyLimit::max(1 << 30))
-        .with_state(Arc::new(App::default()));
+        .with_state(state);
     let app = match &cli.static_dir {
         Some(dir) => app
             .fallback_service(ServeDir::new(dir).fallback(ServeFile::new(dir.join("index.html")))),
