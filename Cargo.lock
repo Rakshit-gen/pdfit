@@ -587,6 +587,7 @@ dependencies = [
  "jpeg-decoder",
  "jpeg-encoder",
  "lopdf",
+ "rayon",
  "serde",
  "serde_json",
  "tempfile",

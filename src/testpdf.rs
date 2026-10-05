@@ -183,9 +183,4 @@ fn resources(xobjects: &[(&str, ObjectId)], font: Option<ObjectId>) -> Dictionar
     r
 }
 
-pub fn deflate(data: &[u8]) -> Vec<u8> {
-    use std::io::Write;
-    let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-    e.write_all(data).unwrap();
-    e.finish().unwrap()
-}
+pub use crate::recompress::deflate;

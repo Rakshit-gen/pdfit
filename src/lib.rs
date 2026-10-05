@@ -3,6 +3,7 @@
 pub mod matrix;
 pub mod predictor;
 pub mod raster;
+pub mod recompress;
 pub mod scan;
 
 #[cfg(test)]
