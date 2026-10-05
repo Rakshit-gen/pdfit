@@ -383,12 +383,12 @@ button:disabled {
 }
 
 .verdict {
-  border-left: 4px solid var(--green);
-  padding: 4px 0 4px 14px;
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
 }
 
-.verdict.short {
-  border-left-color: var(--red);
+.verdict h3 {
+  color: var(--green);
 }
 
 .verdict.short h3 {
