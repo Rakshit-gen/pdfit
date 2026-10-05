@@ -238,11 +238,10 @@ fn report(images: &[doc::Image], changes: &[Change]) -> Vec<ImageReport> {
 
 pub fn mb(bytes: usize) -> String {
     let m = bytes as f64 / 1_000_000.0;
-    if m >= 10.0 {
-        format!("{m:.0} MB")
-    } else if m >= 1.0 {
-        // "2 MB" reads better than "2.0 MB", the way the limit was written.
-        format!("{m:.1} MB").replace(".0 ", " ")
+    if m >= 1.0 {
+        // Two decimals, like the web page, but "2 MB" rather than "2.00 MB",
+        // the way the limit was written.
+        format!("{m:.2} MB").replace(".00 ", " ")
     } else {
         format!("{:.0} KB", bytes as f64 / 1000.0)
     }
