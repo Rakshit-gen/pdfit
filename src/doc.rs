@@ -27,6 +27,18 @@ pub enum Error {
     Write(String),
 }
 
+impl Error {
+    /// A short name for the page to pick its message and state by.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Error::Encrypted => "encrypted",
+            Error::NotPdf(_) => "not_pdf",
+            Error::Broken(_) => "broken",
+            Error::Write(_) => "write",
+        }
+    }
+}
+
 pub fn load(bytes: &[u8]) -> Result<Document, Error> {
     let head = &bytes[..bytes.len().min(1024)];
     if !head.windows(5).any(|w| w == b"%PDF-") {
