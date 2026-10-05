@@ -344,9 +344,50 @@ pub fn breakdown(doc: &Document, kept: &HashSet<ObjectId>) -> Breakdown {
     b
 }
 
+/// A size limit as people write it: 2MB, 500KB, 1.5 MB or plain bytes.
+/// MB is 1,000,000 bytes, the stricter reading, so a result passes
+/// whichever way a site counts.
+pub fn parse_size(s: &str) -> Result<usize, String> {
+    let t = s.trim().to_ascii_lowercase().replace(' ', "");
+    let split = t
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(t.len());
+    let (num, unit) = t.split_at(split);
+    let n: f64 = num
+        .parse()
+        .map_err(|_| format!("'{s}' isn't a size; try 2MB or 500KB"))?;
+    let mult = match unit {
+        "" | "b" => 1.0,
+        "k" | "kb" => 1e3,
+        "m" | "mb" => 1e6,
+        "g" | "gb" => 1e9,
+        "kib" => 1024.0,
+        "mib" => 1024.0 * 1024.0,
+        _ => return Err(format!("unknown unit '{unit}' in '{s}'; use KB or MB")),
+    };
+    let bytes = (n * mult).floor();
+    if bytes < 1000.0 {
+        return Err(format!("{s} is too small to hold a PDF"));
+    }
+    Ok(bytes as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sizes_read_the_way_people_write_them() {
+        assert_eq!(parse_size("2MB"), Ok(2_000_000));
+        assert_eq!(parse_size("1.5 mb"), Ok(1_500_000));
+        assert_eq!(parse_size("500KB"), Ok(500_000));
+        assert_eq!(parse_size("2MiB"), Ok(2_097_152));
+        assert_eq!(parse_size("300000"), Ok(300_000));
+        assert!(parse_size("2 parsecs").is_err());
+        assert!(parse_size("MB").is_err());
+        assert!(parse_size("12").is_err());
+    }
+
     use crate::testpdf::Builder;
 
     fn scan_pages(n: usize) -> Vec<u8> {
