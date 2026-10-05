@@ -240,8 +240,9 @@ pub fn mb(bytes: usize) -> String {
     let m = bytes as f64 / 1_000_000.0;
     if m >= 10.0 {
         format!("{m:.0} MB")
-    } else if m >= 0.1 {
-        format!("{m:.1} MB")
+    } else if m >= 1.0 {
+        // "2 MB" reads better than "2.0 MB", the way the limit was written.
+        format!("{m:.1} MB").replace(".0 ", " ")
     } else {
         format!("{:.0} KB", bytes as f64 / 1000.0)
     }
@@ -458,7 +459,7 @@ mod tests {
         assert!(out.images[0].after.is_none());
         let reason = out.reason.unwrap();
         assert!(
-            reason.starts_with("The text and fonts alone are 0.6 MB"),
+            reason.starts_with("The text and fonts alone are 600 KB, more than the 400 KB limit"),
             "{reason}"
         );
     }
