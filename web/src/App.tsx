@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ApiError, fit, inspect, result, type Inspection, type Outcome } from "./api";
+import { ApiError, fit, inspect, original, result, session, type Inspection, type Outcome } from "./api";
 import DropZone from "./DropZone";
 import ImageTable from "./ImageTable";
 import LimitPicker from "./LimitPicker";
@@ -39,6 +39,30 @@ export default function App() {
       setPhase({ k: "failed", name: file.name, kind: err.kind, message: err.message });
     }
   };
+
+  // Pick up the open file after a reload, or the one pdfit-web was started with.
+  useEffect(() => {
+    let cancelled = false;
+    session()
+      .then(async (s) => {
+        if (!s || cancelled) return;
+        const bytes = await original();
+        const file = new File([bytes], s.inspection.name, { type: "application/pdf" });
+        if (s.outcome) {
+          setLimit(s.outcome.limit);
+          const after = await result();
+          if (!cancelled) setPhase({ k: "done", file, info: s.inspection, outcome: s.outcome, before: bytes, after });
+        } else if (!cancelled) {
+          setPhase({ k: "ready", file, info: s.inspection });
+        }
+      })
+      .catch(() => {
+        // Nothing open, or the server is down; the drop zone covers both.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Dropping a file anywhere on the page works, not only on the drop box.
   useEffect(() => {

@@ -11,8 +11,10 @@ interface Props {
 
 /** The four limits upload forms ask for most, or any other size. */
 export default function LimitPicker({ limit, onChange, disabled }: Props) {
-  const [custom, setCustom] = useState("");
-  const [usingCustom, setUsingCustom] = useState(false);
+  // A limit that isn't a preset came from an earlier visit; show it as typed.
+  const odd = limit !== null && !PRESETS.includes(limit);
+  const [custom, setCustom] = useState(odd ? formatBytes(limit) : "");
+  const [usingCustom, setUsingCustom] = useState(odd);
   const bad = usingCustom && custom.trim() !== "" && parseLimit(custom) === null;
 
   return (
@@ -30,7 +32,7 @@ export default function LimitPicker({ limit, onChange, disabled }: Props) {
                 onChange(p);
               }}
             />
-            <span>{formatBytes(p).replace(".00", "")}</span>
+            <span>{formatBytes(p)}</span>
           </label>
         ))}
         <label className="option">

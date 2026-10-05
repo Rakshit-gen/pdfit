@@ -113,3 +113,13 @@ export async function fit(limit: number): Promise<Outcome> {
 export async function result(): Promise<ArrayBuffer> {
   return (await send("/api/result", {})).arrayBuffer();
 }
+
+/** The file the server has open, if any: after a reload, or when
+ * pdfit-web was started with a file. */
+export async function session(): Promise<{ inspection: Inspection; outcome: Outcome | null } | null> {
+  return (await send("/api/session", {})).json();
+}
+
+export async function original(): Promise<ArrayBuffer> {
+  return (await send("/api/original", {})).arrayBuffer();
+}
