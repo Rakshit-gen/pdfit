@@ -142,13 +142,22 @@ pub fn fit(input: &[u8], limit: usize) -> Result<Outcome, Error> {
     };
 
     let lossless = tried(None)?;
-    let text_alone = {
-        let b = breakdown(&lossless.doc, &HashSet::new());
-        b.fonts + b.content
-    };
+    // Bytes that no setting can reduce: everything but the images pdfit
+    // can recompress.
+    let skipped: HashSet<ObjectId> = prepared
+        .inventory
+        .images
+        .iter()
+        .filter(|i| i.info.skip.is_some())
+        .map(|i| i.id)
+        .collect();
+    let fixed = lossless.bytes.len()
+        - breakdown(&lossless.doc, &skipped)
+            .images
+            .min(lossless.bytes.len());
     let (best, setting) = if lossless.bytes.len() <= limit {
         (lossless, None)
-    } else if text_alone >= limit {
+    } else if fixed >= limit {
         // Nothing done to the images can help, so don't spoil them trying.
         (lossless, None)
     } else {
@@ -238,39 +247,43 @@ pub fn mb(bytes: usize) -> String {
     }
 }
 
-fn explain(b: &Breakdown, smallest: usize, limit: usize, floor: Option<Setting>) -> String {
+fn explain(b: &Breakdown, total: usize, limit: usize, floor: Option<Setting>) -> String {
     let text = b.fonts + b.content;
-    if text >= limit {
+    let fixed = total.saturating_sub(b.images);
+    if floor.is_none() {
+        // Gave up before touching the images.
+        if text >= limit {
+            return format!(
+                "The text and fonts alone are {}, more than the {} limit, and pdfit never changes those, \
+                 so it left the images as they were.",
+                mb(text),
+                mb(limit)
+            );
+        }
+        let kept = if b.images_kept > 0 {
+            format!(", images pdfit can't recompress {}", mb(b.images_kept))
+        } else {
+            String::new()
+        };
         return format!(
-            "The text and fonts alone are {}, more than the {} limit, and pdfit never changes those. \
-             The smallest it got was {}.",
+            "Everything except the photos and scans comes to {}: text and fonts {}{kept}, and colour profiles, \
+             metadata and file structure {}. That's over the {} limit, so it left the images as they were.",
+            mb(fixed),
             mb(text),
-            mb(limit),
-            mb(smallest)
+            mb(fixed.saturating_sub(text + b.images_kept)),
+            mb(limit)
         );
     }
-    if text + b.images_kept >= limit {
-        return format!(
-            "Images pdfit can't recompress ({}) and the text and fonts ({}) already add up to more than {}. \
-             The smallest it got was {}.",
-            mb(b.images_kept),
-            mb(text),
-            mb(limit),
-            mb(smallest)
-        );
-    }
-    let at = floor.map_or("after lossless clean-up".to_string(), |s| {
-        format!(
-            "at the lowest setting ({} dpi, JPEG quality {})",
-            s.dpi, s.quality
-        )
-    });
+    let s = floor.expect("checked above");
     format!(
-        "The smallest it got was {} {at}, {} over the limit. Images still take {} and text and fonts {}.",
-        mb(smallest),
-        mb(smallest - limit),
-        mb(b.images + b.images_kept),
-        mb(text)
+        "The smallest it got was {} at the lowest setting ({} dpi, JPEG quality {}), {} over the limit. \
+         The images are down to {}; the rest is text, fonts and file structure ({}).",
+        mb(total),
+        s.dpi,
+        s.quality,
+        mb(total.saturating_sub(limit)),
+        mb(b.images),
+        mb(fixed)
     )
 }
 
@@ -407,5 +420,20 @@ mod tests {
             reason.starts_with("The text and fonts alone are 0.6 MB"),
             "{reason}"
         );
+    }
+
+    #[test]
+    fn when_even_the_lowest_setting_is_too_big_it_says_how_close_it_got() {
+        let mut b = Builder::new();
+        for _ in 0..3 {
+            let img = b.jpeg_image(1200, 1500, 95);
+            b.page("q 576 0 0 720 18 36 cm /Im0 Do Q", &[("Im0", img)], None);
+        }
+        let out = fit(&b.bytes(), 6_000).unwrap();
+        assert!(!out.fits);
+        assert_eq!(out.setting, LADDER.last().copied());
+        let reason = out.reason.unwrap();
+        assert!(reason.starts_with("The smallest it got was"), "{reason}");
+        assert!(reason.contains("72 dpi, JPEG quality 40"), "{reason}");
     }
 }
