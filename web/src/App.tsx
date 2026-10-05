@@ -126,7 +126,7 @@ export default function App() {
 
         {phase.k === "failed" && (
           <section className="status failed" role="alert">
-            <h2>{FAILURE_TITLES[phase.kind] ?? "Something went wrong"}</h2>
+            <h2>{FAILURE_TITLES[phase.kind] ?? "pdfit couldn't open this file"}</h2>
             <p className="file-name">{phase.name}</p>
             <p>{phase.message}</p>
             <DropZone onFile={open} compact />
