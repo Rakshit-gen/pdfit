@@ -6,6 +6,7 @@ pub mod predictor;
 pub mod raster;
 pub mod recompress;
 pub mod scan;
+pub mod tidy;
 
 #[cfg(test)]
 mod testpdf;
