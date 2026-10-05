@@ -209,7 +209,8 @@ function Workspace({ phase, limit, onLimit, onRun, onFile }: WorkspaceProps) {
         />
       </section>
 
-      {phase.k === "done" && !phase.outcome.already_fits && (
+      {/* Only worth comparing when some image actually changed. */}
+      {phase.k === "done" && phase.outcome.images.some((i) => i.after) && (
         <Suspense fallback={<p className="muted">Loading the preview…</p>}>
           <Compare
             before={phase.before}
