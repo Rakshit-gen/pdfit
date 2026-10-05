@@ -49,6 +49,14 @@ fn same_file(a: &Path, b: &Path) -> bool {
     matches!((full(a), full(b)), (Some(x), Some(y)) if x == y)
 }
 
+fn count(n: usize, what: &str) -> String {
+    if n == 1 {
+        format!("1 {what}")
+    } else {
+        format!("{n} {what}s")
+    }
+}
+
 fn image_line(i: &ImageInfo) -> String {
     let pages = match i.pages.as_slice() {
         [] => "not drawn".to_string(),
@@ -86,10 +94,10 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
         }
         let image_bytes: usize = inv.images.iter().map(|i| i.info.bytes).sum();
         println!(
-            "{name}: {}, {} pages, {} images taking {} ({:.0}% of the file).",
+            "{name}: {}, {}, {} taking {} ({:.0}% of the file).",
             mb(input.len()),
-            inv.pages,
-            inv.images.len(),
+            count(inv.pages, "page"),
+            count(inv.images.len(), "image"),
             mb(image_bytes),
             100.0 * image_bytes as f64 / input.len() as f64
         );
@@ -137,9 +145,9 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
     }
 
     println!(
-        "{name}: {}, {} images.",
+        "{name}: {}, {}.",
         mb(input.len()),
-        outcome.images.len()
+        count(outcome.images.len(), "image")
     );
     if outcome.already_fits {
         println!(
