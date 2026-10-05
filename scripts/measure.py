@@ -158,7 +158,6 @@ def main():
             if scores and any(i["after"] for i in report["images"]):
                 row["psnr_min"] = round(min(s[0] for s in scores), 1)
                 row["ssim_min"] = round(min(s[1] for s in scores), 3)
-                row["psnr_mean"] = round(statistics.mean(s[0] for s in scores), 1)
             rows.append(row)
             print(
                 f"{name:20} {limit:>6} {row['before'] / 1e6:6.2f} -> {row['after'] / 1e6:6.2f} MB "
