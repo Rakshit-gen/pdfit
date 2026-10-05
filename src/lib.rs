@@ -9,6 +9,7 @@ pub mod recompress;
 pub mod scan;
 pub mod shrink;
 pub mod tidy;
+pub mod verify;
 
 #[cfg(test)]
 mod testpdf;

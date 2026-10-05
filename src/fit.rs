@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::doc::{self, Error, ImageInfo};
 use crate::shrink::{Change, Prepared, Setting};
+use crate::verify;
 
 /// Highest quality first. 300 dpi is print quality, 150 is what a document
 /// needs on screen, and below 100 small print in scans starts to break up,
@@ -127,6 +128,7 @@ pub fn fit(input: &[u8], limit: usize) -> Result<Outcome, Error> {
         });
     }
 
+    let text_before = verify::fingerprint(&original);
     let prepared = Prepared::new(original);
     let mut attempts = Vec::new();
     let mut tried = |setting: Option<Setting>| -> Result<_, Error> {
@@ -167,6 +169,17 @@ pub fn fit(input: &[u8], limit: usize) -> Result<Outcome, Error> {
             (best, Some(LADDER[hi]))
         }
     };
+
+    // Re-read what's about to be handed back: it has to parse, and its
+    // text, drawings and fonts have to match the input exactly.
+    let reread = doc::load(&best.bytes)
+        .map_err(|e| Error::Write(format!("the result didn't read back: {e}")))?;
+    if verify::fingerprint(&reread) != text_before {
+        return Err(Error::Write(
+            "the result's text or fonts differ from the original, so it was thrown away. This is a bug in pdfit."
+                .into(),
+        ));
+    }
 
     let fits = best.bytes.len() <= limit;
     let changed: HashSet<u32> = best.changes.iter().map(|c| c.obj).collect();
