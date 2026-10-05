@@ -117,6 +117,46 @@ impl Prepared {
         Some(px)
     }
 
+    /// An image and its soft mask, resized together. When both are the
+    /// same size and the mask has no /Matte, the colour is resized
+    /// premultiplied by the mask, so fully transparent pixels (often black)
+    /// don't bleed into the edges of what's visible; a blue signature
+    /// otherwise comes out grey.
+    fn masked_pixels(
+        &self,
+        img: ObjectId,
+        mask: ObjectId,
+        size: (u32, u32),
+        matte: bool,
+    ) -> Option<(Arc<Pixels>, Arc<Pixels>)> {
+        let key = |id| (id, size.0, size.1);
+        {
+            let c = self.cache.lock().unwrap();
+            if let (Some(p), Some(m)) = (c.get(&key(img)), c.get(&key(mask))) {
+                return Some((p.clone(), m.clone()));
+            }
+        }
+        let full = self.pixels(img, None)?;
+        let full_mask = self.pixels(mask, None)?;
+        if full_mask.channels != 1 {
+            return None;
+        }
+        let same_size = (full.width, full.height) == (full_mask.width, full_mask.height);
+        let (px, m) = if same_size && !matte {
+            recompress::resize_with_alpha(&full, &full_mask, size.0, size.1)
+        } else {
+            (
+                recompress::resize(&full, size.0, size.1),
+                recompress::resize(&full_mask, size.0, size.1),
+            )
+        };
+        let (px, m) = (Arc::new(px), Arc::new(m));
+        let mut c = self.cache.lock().unwrap();
+        c.insert(key(img), px.clone());
+        c.insert(key(mask), m.clone());
+        Some((px, m))
+    }
+
     fn recompress(&self, img: &Image, s: Setting) -> Option<Replacement> {
         let old = self.doc.get_object(img.id).ok()?.as_stream().ok()?;
         let (w, h) = (img.info.width, img.info.height);
@@ -124,24 +164,28 @@ impl Prepared {
         // keep their pixel size; only the JPEG quality changes.
         let target =
             drawn_inches(&img.placements).and_then(|inches| target_size(w, h, inches, s.dpi));
-        let px = self.pixels(img.id, target)?;
-        let jpg = recompress::jpeg(&px, s.quality);
-        if jpg.is_empty() {
-            return None;
-        }
-
         let old_mask = img
             .smask
             .and_then(|m| Some((m, self.doc.get_object(m).ok()?.as_stream().ok()?)));
         let mut smask = None;
-        if let (Some((mask_id, mask)), Some((nw, nh))) = (old_mask, target) {
-            // A soft mask can have its own resolution, except when it has a
-            // /Matte entry: then it must match the image exactly.
-            match self.pixels(mask_id, Some((nw, nh))) {
-                Some(m) if m.channels == 1 => smask = Some((mask_id, mask_stream(&mask.dict, &m))),
-                _ if mask.dict.has(b"Matte") => return None,
-                _ => {}
+        let px = match (old_mask, target) {
+            (Some((mask_id, mask)), Some((nw, nh))) => {
+                // A soft mask can have its own resolution, except when it
+                // has a /Matte entry: then it must match the image exactly.
+                match self.masked_pixels(img.id, mask_id, (nw, nh), mask.dict.has(b"Matte")) {
+                    Some((px, m)) => {
+                        smask = Some((mask_id, mask_stream(&mask.dict, &m)));
+                        px
+                    }
+                    None if mask.dict.has(b"Matte") => return None,
+                    None => self.pixels(img.id, target)?,
+                }
             }
+            _ => self.pixels(img.id, target)?,
+        };
+        let jpg = recompress::jpeg(&px, s.quality);
+        if jpg.is_empty() {
+            return None;
         }
 
         let before = old.content.len() + old_mask.map_or(0, |(_, m)| m.content.len());

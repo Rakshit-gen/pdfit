@@ -78,6 +78,45 @@ pub fn resize(px: &Pixels, w: u32, h: u32) -> Pixels {
     }
 }
 
+/// Resize colour and alpha together, with the colour premultiplied by
+/// alpha so invisible pixels carry no weight. Fully transparent pixels
+/// come out as the average visible colour: JPEG then has a flat area
+/// around the edges instead of a hard jump to black, which it would
+/// smear into the visible part.
+pub fn resize_with_alpha(px: &Pixels, alpha: &Pixels, w: u32, h: u32) -> (Pixels, Pixels) {
+    let n = px.channels as usize;
+    let mut pre = px.clone();
+    for (p, &a) in pre.data.chunks_mut(n).zip(&alpha.data) {
+        for c in p {
+            *c = ((*c as u32 * a as u32 + 127) / 255) as u8;
+        }
+    }
+    let mut out = resize(&pre, w, h);
+    let a = resize(alpha, w, h);
+    let mut sum = vec![0u64; n];
+    let mut weight = 0u64;
+    for (p, &av) in out.data.chunks(n).zip(&a.data) {
+        weight += av as u64;
+        for (s, &c) in sum.iter_mut().zip(p) {
+            *s += c as u64 * 255;
+        }
+    }
+    let mean: Vec<u8> = sum
+        .iter()
+        .map(|s| (s / weight.max(1)).min(255) as u8)
+        .collect();
+    for (p, &av) in out.data.chunks_mut(n).zip(&a.data) {
+        if av == 0 {
+            p.copy_from_slice(&mean);
+        } else {
+            for c in p {
+                *c = ((*c as u32 * 255 + av as u32 / 2) / av as u32).min(255) as u8;
+            }
+        }
+    }
+    (out, a)
+}
+
 pub fn jpeg(px: &Pixels, quality: u8) -> Vec<u8> {
     let mut out = Vec::new();
     let mut enc = jpeg_encoder::Encoder::new(&mut out, quality);
@@ -163,5 +202,43 @@ mod tests {
         d.decode().unwrap();
         let info = d.info().unwrap();
         assert_eq!((info.width, info.height), (150, 100));
+    }
+
+    #[test]
+    fn transparent_black_does_not_bleed_into_a_blue_line() {
+        // 2 px wide blue stroke on fully transparent black.
+        let (w, h) = (40, 40);
+        let mut rgb = vec![0u8; w * h * 3];
+        let mut alpha = vec![0u8; w * h];
+        for y in 0..h {
+            for x in 19..21 {
+                rgb[(y * w + x) * 3..][..3].copy_from_slice(&[20, 40, 140]);
+                alpha[y * w + x] = 255;
+            }
+        }
+        let px = Pixels {
+            width: 40,
+            height: 40,
+            channels: 3,
+            data: rgb,
+        };
+        let a = Pixels {
+            width: 40,
+            height: 40,
+            channels: 1,
+            data: alpha,
+        };
+        let (out, m) = resize_with_alpha(&px, &a, 10, 10);
+        for (p, &av) in out.data.chunks(3).zip(&m.data) {
+            if av > 0 {
+                assert!(
+                    p[2] > 120 && p[0] < 40,
+                    "visible pixel lost its blue: {p:?} at alpha {av}"
+                );
+            }
+        }
+        // And the plain resize shows the problem this avoids.
+        let plain = resize(&px, 10, 10);
+        assert!(plain.data.chunks(3).any(|p| p[2] > 0 && p[2] < 100));
     }
 }
