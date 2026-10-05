@@ -154,7 +154,8 @@ def main():
             )
             text_same, scores = compare(src, out)
             row["text_same"] = text_same
-            if scores and report["output_bytes"] != report["input_bytes"]:
+            # Only images pdfit changed can differ; skip the rest rather than report infinity.
+            if scores and any(i["after"] for i in report["images"]):
                 row["psnr_min"] = round(min(s[0] for s in scores), 1)
                 row["ssim_min"] = round(min(s[1] for s in scores), 3)
                 row["psnr_mean"] = round(statistics.mean(s[0] for s in scores), 1)
