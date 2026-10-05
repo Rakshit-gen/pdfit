@@ -142,7 +142,14 @@ pub fn fit(input: &[u8], limit: usize) -> Result<Outcome, Error> {
     };
 
     let lossless = tried(None)?;
+    let text_alone = {
+        let b = breakdown(&lossless.doc, &HashSet::new());
+        b.fonts + b.content
+    };
     let (best, setting) = if lossless.bytes.len() <= limit {
+        (lossless, None)
+    } else if text_alone >= limit {
+        // Nothing done to the images can help, so don't spoil them trying.
         (lossless, None)
     } else {
         let last = LADDER.len() - 1;
@@ -383,10 +390,18 @@ mod tests {
             })
             .collect();
         let f = b.font(&program);
-        b.page("BT /F1 12 Tf (hi) Tj ET", &[], Some(f));
+        let photo = b.jpeg_image(1500, 1000, 92);
+        b.page(
+            "BT /F1 12 Tf (hi) Tj ET q 360 0 0 240 0 0 cm /Im0 Do Q",
+            &[("Im0", photo)],
+            Some(f),
+        );
         let input = b.bytes();
         let out = fit(&input, 400_000).unwrap();
         assert!(!out.fits);
+        // The photo can't make up the difference, so it isn't spoiled.
+        assert_eq!(out.attempts.len(), 1);
+        assert!(out.images[0].after.is_none());
         let reason = out.reason.unwrap();
         assert!(
             reason.starts_with("The text and fonts alone are 0.6 MB"),

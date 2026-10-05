@@ -178,7 +178,7 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
     match (outcome.fits, outcome.setting) {
         (true, None) => println!("Lossless clean-up alone was enough."),
         (true, Some(s)) => println!(
-            "Tried {tried} settings; the best one that fits is {} dpi at JPEG quality {}.",
+            "Made {tried} versions; the best one that fits is {} dpi at JPEG quality {}.",
             s.dpi, s.quality
         ),
         (false, _) => println!(

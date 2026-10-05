@@ -212,7 +212,12 @@ pub fn inventory(doc: &Document) -> Inventory {
             placements,
         });
     }
-    images.sort_by_key(|i| std::cmp::Reverse(i.info.bytes));
+    images.sort_by_key(|i| {
+        (
+            std::cmp::Reverse(i.info.bytes),
+            i.info.pages.first().copied(),
+        )
+    });
     Inventory {
         pages: doc.get_pages().len(),
         inline_images: found.inline_images,
