@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::doc::{self, Error, Image, Inventory};
-use crate::raster::{self, Model, Pixels};
+use crate::raster::{self, Pixels};
 use crate::recompress::{self, drawn_inches, target_size};
 use crate::tidy::{self, Tidied};
 
@@ -163,11 +163,6 @@ impl Prepared {
         dict.set("Height", px.height as i64);
         dict.set("BitsPerComponent", 8);
         dict.set("Filter", "DCTDecode");
-        if img.model == Some(Model::Cmyk) {
-            // Converted to RGB with /Decode already applied.
-            dict.set("ColorSpace", "DeviceRGB");
-            dict.remove(b"Decode");
-        }
         Some(Replacement {
             image: (img.id, Stream::new(dict, jpg).with_compression(false)),
             smask,

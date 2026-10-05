@@ -4,7 +4,7 @@
 use std::io::Write;
 
 use image::imageops::{self, FilterType};
-use image::{ImageBuffer, Luma, Rgb};
+use image::{ImageBuffer, Luma, Rgb, Rgba};
 
 use crate::raster::Pixels;
 use crate::scan::Placement;
@@ -55,8 +55,16 @@ pub fn resize(px: &Pixels, w: u32, h: u32) -> Pixels {
                     .expect("size checked at decode");
             imageops::resize(&img, w, h, FilterType::Lanczos3).into_raw()
         }
-        _ => {
+        3 => {
             let img: ImageBuffer<Rgb<u8>, _> =
+                ImageBuffer::from_raw(px.width, px.height, px.data.as_slice())
+                    .expect("size checked at decode");
+            imageops::resize(&img, w, h, FilterType::Lanczos3).into_raw()
+        }
+        // CMYK. The resize treats the four channels independently (it
+        // doesn't premultiply), so RGBA is just a four-channel container.
+        _ => {
+            let img: ImageBuffer<Rgba<u8>, _> =
                 ImageBuffer::from_raw(px.width, px.height, px.data.as_slice())
                     .expect("size checked at decode");
             imageops::resize(&img, w, h, FilterType::Lanczos3).into_raw()
@@ -77,10 +85,10 @@ pub fn jpeg(px: &Pixels, quality: u8) -> Vec<u8> {
     // lines (signatures in blue ink, stamps) keep their colour.
     enc.set_chroma_subsampling_method(jpeg_encoder::ChromaSubsamplingMethod::Average);
     enc.set_optimized_huffman_tables(true);
-    let color = if px.channels == 1 {
-        jpeg_encoder::ColorType::Luma
-    } else {
-        jpeg_encoder::ColorType::Rgb
+    let color = match px.channels {
+        1 => jpeg_encoder::ColorType::Luma,
+        3 => jpeg_encoder::ColorType::Rgb,
+        _ => jpeg_encoder::ColorType::Cmyk,
     };
     // Images over 65535 px on a side can't be JPEG; the caller keeps the
     // original when encoding fails.

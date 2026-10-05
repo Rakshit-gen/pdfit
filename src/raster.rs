@@ -175,11 +175,17 @@ fn model_of(doc: &Document, cs: &Object) -> Result<Model, Skip> {
     }
 }
 
-/// Decode an image to pixels. Gray and RGB come out with the same samples
-/// the file holds (the image's /Decode array and colour space still apply
-/// to them, and are kept). CMYK is converted to RGB the way viewers do,
-/// with /Decode applied, because there's no point keeping four channels
-/// for a file that's going to a screen or an upload form.
+/// Decode an image to pixels, keeping its colour space: the image's
+/// /ColorSpace and /Decode array still apply to the samples, so they're
+/// carried over unchanged and colours can't drift.
+///
+/// CMYK needs care. Viewers read a CMYK JPEG's samples the way libjpeg
+/// decodes them and then apply /Decode (Photoshop's inverted JPEGs come
+/// with /Decode [1 0 1 0 1 0 1 0] for that reason). jpeg-decoder instead
+/// returns 255 minus each sample, and jpeg-encoder writes 255 minus each
+/// value it's given, so passing the decoder's output straight to the
+/// encoder stores the original samples and the old /Decode stays right.
+/// Raw CMYK from Flate is inverted here to match.
 pub fn decode(doc: &Document, stream: &Stream) -> Result<(Pixels, Model), Skip> {
     let dict = &stream.dict;
     let model = classify(doc, dict)?;
@@ -228,26 +234,13 @@ pub fn decode(doc: &Document, stream: &Stream) -> Result<(Pixels, Model), Skip> 
     }
     data.truncate(expected);
 
-    if model == Model::Cmyk {
-        if from_jpeg {
-            // jpeg-decoder returns 255 - sample for every 4-channel JPEG
-            // (it assumes Adobe's inverted storage). Viewers apply /Decode
-            // to libjpeg's raw samples instead, so undo the inversion first.
-            for v in &mut data {
-                *v = 255 - *v;
-            }
+    if model == Model::Cmyk && !from_jpeg {
+        // CMYK is held in the inverted form both JPEG crates use: what
+        // jpeg-decoder returns, and what jpeg-encoder expects so that the
+        // JPEG it writes stores the original samples. See `decode`.
+        for v in &mut data {
+            *v = 255 - *v;
         }
-        let decode = decode_array(doc, dict, 4);
-        let rgb = cmyk_to_rgb(&data, &decode);
-        return Ok((
-            Pixels {
-                width,
-                height,
-                channels: 3,
-                data: rgb,
-            },
-            model,
-        ));
     }
     Ok((
         Pixels {
@@ -332,73 +325,6 @@ fn jpeg(data: &[u8], components: usize) -> Result<Vec<u8>, Skip> {
     Ok(pixels)
 }
 
-/// The image's /Decode array as (min, max) pairs, defaulting to (0, 1).
-pub fn decode_array(doc: &Document, dict: &Dictionary, n: usize) -> Vec<(f32, f32)> {
-    let arr: Vec<f32> = dict
-        .get(b"Decode")
-        .ok()
-        .and_then(|o| doc.dereference(o).ok())
-        .and_then(|(_, o)| o.as_array().ok().cloned())
-        .map(|a| a.iter().filter_map(|o| o.as_float().ok()).collect())
-        .unwrap_or_default();
-    (0..n)
-        .map(|i| match (arr.get(2 * i), arr.get(2 * i + 1)) {
-            (Some(&a), Some(&b)) => (a, b),
-            _ => (0.0, 1.0),
-        })
-        .collect()
-}
-
-/// CMYK to RGB with the polynomial fit pdf.js uses for DeviceCMYK (an
-/// approximation of a US Web Coated press profile). The naive
-/// `(1 - c) * (1 - k)` formula makes everything too bright and saturated
-/// next to what Acrobat or pdf.js show.
-fn cmyk_to_rgb(cmyk: &[u8], decode: &[(f32, f32)]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(cmyk.len() / 4 * 3);
-    let apply =
-        |v: u8, (lo, hi): (f32, f32)| (lo + v as f32 / 255.0 * (hi - lo)).clamp(0.0, 1.0) as f64;
-    for px in cmyk.as_chunks::<4>().0 {
-        let c = apply(px[0], decode[0]);
-        let m = apply(px[1], decode[1]);
-        let y = apply(px[2], decode[2]);
-        let k = apply(px[3], decode[3]);
-        let r = 255.0
-            + c * (-4.387332384609988 * c
-                + 54.48615194189176 * m
-                + 18.82290502165302 * y
-                + 212.25662451639585 * k
-                - 285.2331026137004)
-            + m * (1.7149763477362134 * m
-                - 5.6096736904047315 * y
-                - 17.873870861415444 * k
-                - 5.497006427196366)
-            + y * (-2.5217340131683033 * y - 21.248923337353073 * k - 17.5119270841813)
-            + k * (-21.86122147463605 * k - 189.48180835922747);
-        let g = 255.0
-            + c * (8.841041422036149 * c
-                + 60.118027045597366 * m
-                + 6.871425592049007 * y
-                + 31.159100130055922 * k
-                - 79.2970844816548)
-            + m * (-15.310361306967817 * m + 17.575251261109482 * y + 131.35250912493976 * k
-                - 190.9453302588951)
-            + y * (4.444339102852739 * y + 9.8632861493405 * k - 24.86741582555878)
-            + k * (-20.737325471181034 * k - 187.80453709719578);
-        let b = 255.0
-            + c * (0.8842522430003296 * c + 8.078677503112928 * m + 30.89978309703729 * y
-                - 0.23883238689178934 * k
-                - 14.183576799673286)
-            + m * (10.49593273432072 * m + 63.02378494754052 * y + 50.606957656360734 * k
-                - 112.23884253719248)
-            + y * (0.03296041114873217 * y + 115.60384449646641 * k - 193.58209356861505)
-            + k * (-22.33816807309886 * k - 180.12613974708367);
-        for v in [r, g, b] {
-            out.push(v.round().clamp(0.0, 255.0) as u8);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,47 +372,40 @@ mod tests {
         assert_eq!(px.data, raw);
     }
 
-    fn cmyk_white_jpeg() -> Vec<u8> {
-        // True CMYK (0,0,0,0) is paper white. jpeg-encoder stores it
-        // Adobe-style, inverted, as 255.
-        let mut out = Vec::new();
-        jpeg_encoder::Encoder::new(&mut out, 90)
+    #[test]
+    fn cmyk_jpeg_survives_a_round_trip_with_its_samples_intact() {
+        // Paper white in true CMYK is (0,0,0,0); jpeg-encoder stores it
+        // Adobe-style as 255, so this file needs /Decode [1 0 ...] to show
+        // white, exactly like a Photoshop JPEG.
+        let mut jpg = Vec::new();
+        jpeg_encoder::Encoder::new(&mut jpg, 90)
             .encode(&[0u8; 16 * 16 * 4], 16, 16, jpeg_encoder::ColorType::Cmyk)
             .unwrap();
-        out
-    }
-
-    #[test]
-    fn inverted_cmyk_jpeg_with_a_decode_array_renders_white() {
         let mut d = base(16, 16, "DeviceCMYK".into());
         d.set("Filter", "DCTDecode");
-        d.set(
-            "Decode",
-            vec![
-                1.into(),
-                0.into(),
-                1.into(),
-                0.into(),
-                1.into(),
-                0.into(),
-                1.into(),
-                0.into(),
-            ],
-        );
-        let (doc, s) = image(d, cmyk_white_jpeg());
+        let (doc, s) = image(d.clone(), jpg);
         let (px, model) = decode(&doc, &s).unwrap();
-        assert_eq!(model, Model::Cmyk);
-        assert_eq!(px.channels, 3);
-        assert!(px.data.iter().all(|&v| v >= 250), "{:?}", &px.data[..6]);
+        assert_eq!((model, px.channels), (Model::Cmyk, 4));
+
+        let again = crate::recompress::jpeg(&px, 90);
+        let (doc, s) = image(d, again);
+        let (px2, _) = decode(&doc, &s).unwrap();
+        let worst = px
+            .data
+            .iter()
+            .zip(&px2.data)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max();
+        assert!(worst <= Some(2), "{worst:?}");
     }
 
     #[test]
-    fn inverted_cmyk_jpeg_without_decode_stays_dark_like_in_a_viewer() {
-        let mut d = base(16, 16, "DeviceCMYK".into());
-        d.set("Filter", "DCTDecode");
-        let (doc, s) = image(d, cmyk_white_jpeg());
+    fn raw_cmyk_is_held_inverted_like_jpeg_cmyk() {
+        let mut d = base(1, 1, "DeviceCMYK".into());
+        d.set("Filter", "FlateDecode");
+        let (doc, s) = image(d, deflate(&[10, 20, 30, 40]));
         let (px, _) = decode(&doc, &s).unwrap();
-        assert!(px.data.iter().all(|&v| v <= 40), "{:?}", &px.data[..6]);
+        assert_eq!(px.data, [245, 235, 225, 215]);
     }
 
     #[test]
