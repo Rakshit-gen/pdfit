@@ -1,0 +1,265 @@
+{
+ "machine": "arm64 26.6.2",
+ "dpi": 150,
+ "rows": [
+  {
+   "file": "scan.pdf",
+   "limit": "2MB",
+   "before": 5350450,
+   "seconds": 3.29,
+   "after": 1398719,
+   "fits": true,
+   "setting": {
+    "dpi": 250,
+    "quality": 80
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 44.6,
+   "ssim_min": 0.99,
+   "psnr_mean": 44.7
+  },
+  {
+   "file": "scan.pdf",
+   "limit": "1MB",
+   "before": 5350450,
+   "seconds": 2.37,
+   "after": 965799,
+   "fits": true,
+   "setting": {
+    "dpi": 200,
+    "quality": 80
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 43.3,
+   "ssim_min": 0.987,
+   "psnr_mean": 43.3
+  },
+  {
+   "file": "scan.pdf",
+   "limit": "500KB",
+   "before": 5350450,
+   "seconds": 1.48,
+   "after": 485931,
+   "fits": true,
+   "setting": {
+    "dpi": 150,
+    "quality": 70
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 37.9,
+   "ssim_min": 0.98,
+   "psnr_mean": 37.9
+  },
+  {
+   "file": "scan-gray-png.pdf",
+   "limit": "2MB",
+   "before": 5297995,
+   "seconds": 0.9,
+   "after": 1502295,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 52.1,
+   "ssim_min": 0.995,
+   "psnr_mean": 52.1
+  },
+  {
+   "file": "scan-gray-png.pdf",
+   "limit": "1MB",
+   "before": 5297995,
+   "seconds": 0.9,
+   "after": 759540,
+   "fits": true,
+   "setting": {
+    "dpi": 250,
+    "quality": 80
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 49.5,
+   "ssim_min": 0.993,
+   "psnr_mean": 49.5
+  },
+  {
+   "file": "report.pdf",
+   "limit": "2MB",
+   "before": 2664002,
+   "seconds": 1.17,
+   "after": 1254986,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 46.3,
+   "ssim_min": 0.993,
+   "psnr_mean": Infinity
+  },
+  {
+   "file": "report.pdf",
+   "limit": "1MB",
+   "before": 2664002,
+   "seconds": 1.22,
+   "after": 970147,
+   "fits": true,
+   "setting": {
+    "dpi": 250,
+    "quality": 80
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 44.6,
+   "ssim_min": 0.991,
+   "psnr_mean": Infinity
+  },
+  {
+   "file": "report.pdf",
+   "limit": "500KB",
+   "before": 2664002,
+   "seconds": 0.09,
+   "after": 2643684,
+   "fits": false,
+   "setting": null,
+   "reason": "The text and fonts alone are 602 KB, more than the 500 KB limit, and pdfit never changes those, so it left the images as they were.",
+   "problems": [],
+   "text_same": true
+  },
+  {
+   "file": "form-signature.pdf",
+   "limit": "500KB",
+   "before": 837945,
+   "seconds": 0.31,
+   "after": 494806,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 43.6,
+   "ssim_min": 0.995,
+   "psnr_mean": 43.8
+  },
+  {
+   "file": "form-signature.pdf",
+   "limit": "300KB",
+   "before": 837945,
+   "seconds": 0.03,
+   "after": 828385,
+   "fits": false,
+   "setting": null,
+   "reason": "The text and fonts alone are 431 KB, more than the 300 KB limit, and pdfit never changes those, so it left the images as they were.",
+   "problems": [],
+   "text_same": true
+  },
+  {
+   "file": "cmyk.pdf",
+   "limit": "2MB",
+   "before": 3194371,
+   "seconds": 0.99,
+   "after": 690000,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 46.8,
+   "ssim_min": 0.992,
+   "psnr_mean": 46.8
+  },
+  {
+   "file": "cmyk.pdf",
+   "limit": "1MB",
+   "before": 3194371,
+   "seconds": 1.35,
+   "after": 690000,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 46.8,
+   "ssim_min": 0.992,
+   "psnr_mean": 46.8
+  },
+  {
+   "file": "smask.pdf",
+   "limit": "2MB",
+   "before": 8744297,
+   "seconds": 1.33,
+   "after": 816687,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 47.9,
+   "ssim_min": 0.997,
+   "psnr_mean": 47.9
+  },
+  {
+   "file": "smask.pdf",
+   "limit": "1MB",
+   "before": 8744297,
+   "seconds": 1.34,
+   "after": 816687,
+   "fits": true,
+   "setting": {
+    "dpi": 300,
+    "quality": 85
+   },
+   "reason": null,
+   "problems": [],
+   "text_same": true,
+   "psnr_min": 47.9,
+   "ssim_min": 0.997,
+   "psnr_mean": 47.9
+  },
+  {
+   "file": "fonts-heavy.pdf",
+   "limit": "2MB",
+   "before": 7241520,
+   "seconds": 0.17,
+   "after": 7238681,
+   "fits": false,
+   "setting": null,
+   "reason": "The text and fonts alone are 7.1 MB, more than the 2 MB limit, and pdfit never changes those, so it left the images as they were.",
+   "problems": [],
+   "text_same": true
+  },
+  {
+   "file": "encrypted.pdf",
+   "limit": "2MB",
+   "before": 2667243,
+   "seconds": 0.01,
+   "error": "pdfit: This PDF is encrypted or password-protected. pdfit won't rewrite it, because the copy would lose that protection. Save an unprotected copy from the app that made it (or with the password, in a PDF reader), then try again."
+  }
+ ]
+}
