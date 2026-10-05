@@ -20,6 +20,8 @@ describe("parseLimit", () => {
 describe("formatting", () => {
   it("uses decimal megabytes", () => {
     expect(formatBytes(5_350_000)).toBe("5.35 MB");
+    expect(formatBytes(2_000_000)).toBe("2 MB");
+    expect(formatBytes(1_400_000)).toBe("1.40 MB");
     expect(formatBytes(494_806)).toBe("495 KB");
     expect(formatBytes(512)).toBe("512 bytes");
   });

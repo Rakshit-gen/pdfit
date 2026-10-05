@@ -3,7 +3,7 @@
 // counts.
 
 export function formatBytes(n: number): string {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(2)} MB`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2).replace(/\.00$/, "")} MB`;
   if (n >= 1e3) return `${Math.round(n / 1e3)} KB`;
   return `${n} bytes`;
 }
