@@ -1,0 +1,571 @@
+/* Paper, ink and a red pen. See DESIGN.md. */
+:root {
+  --paper: #f3f0e8;
+  --sheet: #fcfbf7;
+  --rule: #d8d1c2;
+  --rule-strong: #b9b09d;
+  --ink: #1f2328;
+  --muted: #5b5850;
+  --pen: #2350a8;
+  --pen-dark: #1a3d82;
+  --red: #b3261e;
+  --green: #2b6a3c;
+  --ochre: #a8741a;
+  --kept: #8ea4cc;
+  --struct: #cdc5b3;
+  --focus: #2350a8;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.5 "Public Sans", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin-bottom: 12px;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
+p {
+  margin: 0 0 8px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+}
+
+.masthead {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.masthead h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+}
+
+.masthead p {
+  color: var(--muted);
+  margin: 2px 0 0;
+  max-width: 60ch;
+}
+
+main > section,
+main > .file,
+main > .controls {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 6px 0 0;
+}
+
+.error {
+  color: var(--red);
+}
+
+.note {
+  margin: 10px 0 0;
+}
+
+/* Buttons */
+
+button,
+.button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 3px;
+  padding: 9px 16px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  border: 1px solid transparent;
+}
+
+.primary {
+  background: var(--pen);
+  color: #fff;
+}
+
+.primary:hover {
+  background: var(--pen-dark);
+}
+
+.secondary {
+  background: var(--sheet);
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+
+.secondary:hover {
+  border-color: var(--ink);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Drop zone: an empty sheet waiting for a document. */
+
+.drop {
+  border: 2px dashed var(--rule-strong);
+  border-radius: 3px;
+  background: var(--sheet);
+  padding: 56px 24px;
+  text-align: center;
+  transition: border-color 120ms, background-color 120ms;
+}
+
+.drop.over {
+  border-color: var(--pen);
+  background: #eef2fa;
+}
+
+.drop-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.drop.compact {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.drop.compact.over {
+  outline: 2px dashed var(--pen);
+}
+
+.status {
+  text-align: left;
+}
+
+.status.failed h2 {
+  color: var(--red);
+}
+
+.status .drop {
+  text-align: left;
+  margin-top: 14px;
+}
+
+.file-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* File and its weight */
+
+.file-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.file-head h2 {
+  margin-bottom: 2px;
+}
+
+.sizebar {
+  margin: 0 0 12px;
+}
+
+.sizebar figcaption {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.sizebar strong.over {
+  color: var(--red);
+}
+
+.sizebar strong.under {
+  color: var(--green);
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  height: 22px;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--rule) calc(10% - 1px) 10%);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.seg {
+  height: 100%;
+  transition: width 200ms;
+}
+
+.seg.images,
+.swatch.images {
+  background: var(--pen);
+}
+.seg.images_kept,
+.swatch.images_kept {
+  background: var(--kept);
+}
+.seg.fonts,
+.swatch.fonts {
+  background: var(--ochre);
+}
+.seg.content,
+.swatch.content {
+  background: var(--ink);
+}
+.seg.other,
+.swatch.other {
+  background: var(--struct);
+}
+
+.bar .limit {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--red);
+}
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 0;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.swatch.limit {
+  width: 3px;
+  height: 14px;
+  vertical-align: -3px;
+  background: var(--red);
+}
+
+/* Limit and run */
+
+.controls {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.limits {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.limits legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.option {
+  position: relative;
+}
+
+.option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.option span {
+  display: inline-block;
+  padding: 7px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  background: var(--sheet);
+  min-width: 64px;
+  text-align: center;
+}
+
+.option input:checked + span {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-weight: 600;
+}
+
+.option input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.custom {
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  background: #fff;
+  width: 13em;
+}
+
+.custom[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.live {
+  width: 100%;
+}
+
+.live:empty {
+  display: none;
+}
+
+.verdict {
+  border-left: 4px solid var(--green);
+  padding: 4px 0 4px 14px;
+}
+
+.verdict.short {
+  border-left-color: var(--red);
+}
+
+.verdict.short h3 {
+  color: var(--red);
+}
+
+.verdict .button {
+  margin-top: 6px;
+}
+
+/* Images */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.images {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.images th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+  border-bottom: 2px solid var(--ink);
+  padding: 6px 10px 6px 0;
+  white-space: nowrap;
+}
+
+.images td {
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 10px 8px 0;
+  vertical-align: top;
+}
+
+.images .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sub {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.share {
+  display: inline-block;
+  width: 80px;
+  height: 8px;
+  background: var(--paper);
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.share-bar {
+  display: block;
+  height: 100%;
+  background: var(--pen);
+}
+
+.skips {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Before and after */
+
+.compare-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 4px;
+}
+
+.compare-head h2 {
+  margin: 0;
+  margin-right: auto;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager button {
+  padding: 6px 12px;
+}
+
+.zoom select {
+  font: inherit;
+  margin-left: 6px;
+  padding: 4px;
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 4px;
+}
+
+.pane {
+  margin: 0;
+}
+
+.pane figcaption {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.sheet {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--rule-strong);
+  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.12);
+  cursor: crosshair;
+  touch-action: none;
+  min-height: 120px;
+}
+
+.sheet > canvas:first-child {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rendering {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.loupe {
+  position: absolute;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(31, 35, 40, 0.3);
+  pointer-events: none;
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 18px 16px 48px;
+  }
+  main > section,
+  main > .file,
+  main > .controls {
+    padding: 16px 14px;
+  }
+  .file-head {
+    flex-direction: column;
+  }
+  .panes {
+    grid-template-columns: 1fr;
+  }
+  .images th:nth-child(5),
+  .images td:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
