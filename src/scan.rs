@@ -187,7 +187,7 @@ impl Walker<'_> {
             let Ok((_, Object::Dictionary(annot))) = self.doc.dereference(&a) else {
                 continue;
             };
-            let Some(rect) = rect(self.doc, &annot, b"Rect") else {
+            let Some(rect) = rect(self.doc, annot, b"Rect") else {
                 continue;
             };
             let Some(ap) = annot

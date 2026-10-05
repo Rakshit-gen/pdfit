@@ -355,8 +355,9 @@ pub fn decode_array(doc: &Document, dict: &Dictionary, n: usize) -> Vec<(f32, f3
 /// next to what Acrobat or pdf.js show.
 fn cmyk_to_rgb(cmyk: &[u8], decode: &[(f32, f32)]) -> Vec<u8> {
     let mut out = Vec::with_capacity(cmyk.len() / 4 * 3);
-    let apply = |v: u8, (lo, hi): (f32, f32)| (lo + v as f32 / 255.0 * (hi - lo)).clamp(0.0, 1.0);
-    for px in cmyk.chunks_exact(4) {
+    let apply =
+        |v: u8, (lo, hi): (f32, f32)| (lo + v as f32 / 255.0 * (hi - lo)).clamp(0.0, 1.0) as f64;
+    for px in cmyk.as_chunks::<4>().0 {
         let c = apply(px[0], decode[0]);
         let m = apply(px[1], decode[1]);
         let y = apply(px[2], decode[2]);
