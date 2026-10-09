@@ -80,14 +80,21 @@ impl fmt::Display for Skip {
     }
 }
 
-pub fn filters(dict: &Dictionary) -> Vec<Vec<u8>> {
-    match dict.get(b"Filter") {
-        Ok(Object::Name(n)) => vec![n.clone()],
-        Ok(Object::Array(a)) => a
-            .iter()
-            .filter_map(|o| o.as_name().ok().map(<[u8]>::to_vec))
-            .collect(),
-        _ => Vec::new(),
+/// The stream's filters in order. /Filter, and each name in it, can be an
+/// indirect object; read as missing, a Flate image looked like raw data
+/// that was too short, and was skipped as broken.
+pub fn filters(doc: &Document, dict: &Dictionary) -> Vec<Vec<u8>> {
+    let name = |o: &Object| {
+        let (_, o) = doc.dereference(o).ok()?;
+        o.as_name().ok().map(<[u8]>::to_vec)
+    };
+    let Ok(f) = dict.get(b"Filter") else {
+        return Vec::new();
+    };
+    match doc.dereference(f).map(|(_, o)| o) {
+        Ok(Object::Array(a)) => a.iter().filter_map(name).collect(),
+        Ok(o) => name(o).into_iter().collect(),
+        Err(_) => Vec::new(),
     }
 }
 
@@ -99,7 +106,7 @@ fn int(doc: &Document, dict: &Dictionary, key: &[u8]) -> Option<i64> {
 /// Work out the colour model, or why the image is out of scope, without
 /// decoding any pixels. Cheap enough to run over every image up front.
 pub fn classify(doc: &Document, dict: &Dictionary) -> Result<Model, Skip> {
-    for f in filters(dict) {
+    for f in filters(doc, dict) {
         match f.as_slice() {
             b"JBIG2Decode" => return Err(Skip::Codec("JBIG2")),
             b"CCITTFaxDecode" => return Err(Skip::Codec("CCITT fax")),
@@ -118,7 +125,7 @@ pub fn classify(doc: &Document, dict: &Dictionary) -> Result<Model, Skip> {
     if matches!(get(b"Mask"), Some(Object::Array(_))) {
         return Err(Skip::ColorKeyMask);
     }
-    let is_dct = filters(dict).iter().any(|f| f == b"DCTDecode");
+    let is_dct = filters(doc, dict).iter().any(|f| f == b"DCTDecode");
     let bpc = int(doc, dict, b"BitsPerComponent").unwrap_or(8);
     if bpc == 1 {
         return Err(Skip::OneBit);
@@ -207,7 +214,7 @@ pub fn decode(doc: &Document, stream: &Stream) -> Result<(Pixels, Model), Skip> 
     let n = model.components();
     let expected = width as usize * height as usize * n;
 
-    let filters = filters(dict);
+    let filters = filters(doc, dict);
     let parms = decode_parms(doc, dict, filters.len());
     let mut data = stream.content.clone();
     let mut from_jpeg = false;
@@ -380,6 +387,17 @@ mod tests {
         let (doc, s) = image(d, deflate(&enc));
         let (px, model) = decode(&doc, &s).unwrap();
         assert_eq!(model, Model::Rgb);
+        assert_eq!(px.data, raw);
+    }
+
+    #[test]
+    fn filter_can_be_a_reference() {
+        let raw = pattern(4, 3, 1);
+        let (mut doc, _) = image(Dictionary::new(), Vec::new());
+        let f = doc.add_object(vec![Object::Name(b"FlateDecode".to_vec())]);
+        let mut d = base(4, 3, "DeviceGray".into());
+        d.set("Filter", f);
+        let (px, _) = decode(&doc, &Stream::new(d, deflate(&raw))).unwrap();
         assert_eq!(px.data, raw);
     }
 

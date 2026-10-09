@@ -134,8 +134,8 @@ pub fn thumbnails(doc: &Document) -> Vec<ObjectId> {
         .collect()
 }
 
-fn format_name(dict: &lopdf::Dictionary) -> String {
-    let f = raster::filters(dict);
+fn format_name(doc: &Document, dict: &lopdf::Dictionary) -> String {
+    let f = raster::filters(doc, dict);
     match f.last().map(Vec::as_slice) {
         None => "Uncompressed".into(),
         Some(b"DCTDecode" | b"DCT") => "JPEG".into(),
@@ -213,7 +213,7 @@ pub fn inventory(doc: &Document) -> Inventory {
                 pages,
                 width,
                 height,
-                format: format_name(d),
+                format: format_name(doc, d),
                 color: color.into(),
                 bytes,
                 dpi: drawn.map(|i| effective_dpi(width.max(1), height.max(1), i)),
