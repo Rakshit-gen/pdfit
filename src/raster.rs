@@ -107,12 +107,15 @@ pub fn classify(doc: &Document, dict: &Dictionary) -> Result<Model, Skip> {
             _ => {}
         }
     }
-    if matches!(dict.get(b"ImageMask"), Ok(Object::Boolean(true))) {
+    // Both can be indirect objects. Reading them without following the
+    // reference let a colour-key image through to be re-encoded as JPEG.
+    let get = |key: &[u8]| doc.dereference(dict.get(key).ok()?).ok().map(|(_, o)| o);
+    if matches!(get(b"ImageMask"), Some(Object::Boolean(true))) {
         return Err(Skip::StencilMask);
     }
     // An array /Mask means "pixels of exactly this colour are transparent";
     // after JPEG they would no longer be exactly that colour.
-    if matches!(dict.get(b"Mask"), Ok(Object::Array(_))) {
+    if matches!(get(b"Mask"), Some(Object::Array(_))) {
         return Err(Skip::ColorKeyMask);
     }
     let is_dct = filters(dict).iter().any(|f| f == b"DCTDecode");
@@ -397,6 +400,15 @@ mod tests {
             .map(|(a, b)| a.abs_diff(*b))
             .max();
         assert!(worst <= Some(2), "{worst:?}");
+    }
+
+    #[test]
+    fn colour_key_mask_is_found_through_a_reference() {
+        let (mut doc, _) = image(Dictionary::new(), Vec::new());
+        let keys = doc.add_object(vec![Object::Integer(0), Object::Integer(0)]);
+        let mut d = base(1, 1, "DeviceGray".into());
+        d.set("Mask", keys);
+        assert_eq!(classify(&doc, &d), Err(Skip::ColorKeyMask));
     }
 
     #[test]
