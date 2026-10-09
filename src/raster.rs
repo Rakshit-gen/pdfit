@@ -198,7 +198,9 @@ pub fn decode(doc: &Document, stream: &Stream) -> Result<(Pixels, Model), Skip> 
     let height = int(doc, dict, b"Height")
         .filter(|&h| h > 0)
         .ok_or(Skip::Broken("no height".into()))?;
-    if width * height > 200_000_000 {
+    // Both come from the file; a product past i64 used to wrap round and
+    // could slip under the limit.
+    if width.checked_mul(height).is_none_or(|px| px > 200_000_000) {
         return Err(Skip::Broken("more than 200 megapixels".into()));
     }
     let (width, height) = (width as u32, height as u32);
@@ -409,6 +411,16 @@ mod tests {
         let mut d = base(1, 1, "DeviceGray".into());
         d.set("Mask", keys);
         assert_eq!(classify(&doc, &d), Err(Skip::ColorKeyMask));
+    }
+
+    #[test]
+    fn huge_dimensions_are_refused_not_overflowed() {
+        let d = base(1 << 40, 1 << 40, "DeviceGray".into());
+        let (doc, s) = image(d, Vec::new());
+        assert_eq!(
+            decode(&doc, &s).unwrap_err(),
+            Skip::Broken("more than 200 megapixels".into())
+        );
     }
 
     #[test]
