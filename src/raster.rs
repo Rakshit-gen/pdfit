@@ -265,7 +265,13 @@ fn decode_parms(doc: &Document, dict: &Dictionary, count: usize) -> Vec<Option<D
             .and_then(|(_, o)| o.as_dict().ok().cloned())
     };
     let mut out = vec![None; count];
-    match dict.get(b"DecodeParms").or_else(|_| dict.get(b"DP")) {
+    // The array itself can be an indirect object. Missing that dropped the
+    // predictor, and the undone bytes were long enough to pass as pixels.
+    let parms = dict
+        .get(b"DecodeParms")
+        .or_else(|_| dict.get(b"DP"))
+        .and_then(|o| doc.dereference(o).map(|(_, o)| o));
+    match parms {
         Ok(Object::Array(a)) => {
             for (slot, o) in out.iter_mut().zip(a) {
                 *slot = as_dict(o);
@@ -374,6 +380,25 @@ mod tests {
         let (doc, s) = image(d, deflate(&enc));
         let (px, model) = decode(&doc, &s).unwrap();
         assert_eq!(model, Model::Rgb);
+        assert_eq!(px.data, raw);
+    }
+
+    #[test]
+    fn decode_parms_array_can_be_a_reference() {
+        let raw = pattern(4, 3, 1);
+        let mut enc = Vec::new();
+        for row in raw.chunks(4) {
+            enc.push(0); // None
+            enc.extend(row);
+        }
+        let (mut doc, _) = image(Dictionary::new(), Vec::new());
+        let parms = doc.add_object(vec![Object::Dictionary(dictionary! {
+            "Predictor" => 15, "Colors" => 1, "Columns" => 4,
+        })]);
+        let mut d = base(4, 3, "DeviceGray".into());
+        d.set("Filter", vec![Object::Name(b"FlateDecode".to_vec())]);
+        d.set("DecodeParms", parms);
+        let (px, _) = decode(&doc, &Stream::new(d, deflate(&enc))).unwrap();
         assert_eq!(px.data, raw);
     }
 
